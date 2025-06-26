@@ -3,12 +3,14 @@ import csv
 import time
 import sys
 from typing import List, Dict, Set, Tuple
+import random
 
 # Constants
 WORD_LENGTH = 5
 MAX_ATTEMPTS = 6
 STARTING_WORD = "slant"
 WORD_FILE = "word_frequency.csv"
+PAST_ANSWERS_FILE = "past_answers.csv"
 TIMEOUTS = {
     "page_load": 5000,
     "feedback": 15000,
@@ -24,8 +26,13 @@ class WordleFilter:
     
     def _load_words(self) -> List[Dict[str, str]]:
         """Load and cache word list once."""
+        with open(PAST_ANSWERS_FILE, newline="") as w:
+            past_words = {row["word"].lower() for row in csv.DictReader(w)}
         with open(WORD_FILE, newline='') as f:
-            return [row for row in csv.DictReader(f) if len(row["word"]) == WORD_LENGTH]
+            return [
+                row for row in csv.DictReader(f)
+                if len(row["word"]) == WORD_LENGTH and row["word"] not in past_words
+            ]
     
     def filter_words(self, feedback: List[Dict]) -> List[str]:
         """Filter words based on accumulated feedback."""
@@ -212,26 +219,7 @@ class WordlePage:
         
         print(f"Row {row} feedback: {[(r['letter'], r['status']) for r in results]}")
         return results
-        """Wait for and extract feedback from a row."""
-        self._wait_for_animation(row)
-        
-        row_locator = self.page.locator(f'//div[@aria-label="Row {row}"]')
-        results = []
-        
-        for i in range(WORD_LENGTH):
-            tile = row_locator.locator(f'[style*="animation-delay: {i * 100}ms"] > div')
-            aria_label = tile.evaluate("el => el.getAttribute('aria-label')")
-            
-            if aria_label:
-                parts = aria_label.split(", ")
-                if len(parts) >= 3:
-                    results.append({
-                        "pos": i,
-                        "letter": parts[1].lower(),
-                        "status": parts[2].lower()
-                    })
-        
-        return results
+
     
     def _wait_for_animation(self, row: int, timeout: int = 15):
         """Wait for row animation to complete."""
@@ -321,8 +309,13 @@ def main():
         wordle_page.setup_game()
         
         # First guess is always the starting word
-        print(f"Making first guess: {STARTING_WORD}")
-        feedback = wordle_page.make_guess(STARTING_WORD, 1)
+        start = input("Choose starting word (Leave empty for slant or 'random' for random word): ")
+        if start == "" or None:
+            start = STARTING_WORD
+        elif start == "random":
+            start = random.choice(word_filter._load_words)
+        print(f"Making first guess: {start}")
+        feedback = wordle_page.make_guess(start, 1)
         all_feedback.extend(feedback)
         
         # Subsequent guesses based on filtering

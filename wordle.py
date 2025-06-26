@@ -313,7 +313,8 @@ def main():
         if start == "" or None:
             start = STARTING_WORD
         elif start == "random":
-            start = random.choice(word_filter._load_words)
+            start = random.choice(word_filter._load_words())["word"]
+        
         print(f"Making first guess: {start}")
         feedback = wordle_page.make_guess(start, 1)
         all_feedback.extend(feedback)
